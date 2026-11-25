@@ -1,5 +1,9 @@
 # rabbitmq-client
 
+[![CI](https://github.com/dinushc/rabbitmq/actions/workflows/ci.yml/badge.svg)](https://github.com/dinushc/rabbitmq/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dinushc/rabbitmq.svg)](https://pkg.go.dev/github.com/dinushc/rabbitmq)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Небольшая библиотека для RabbitMQ на Go: подключение с автопереподключением, publisher confirms, consumer с конкурентной обработкой, DLQ и готовые контракты событий.
 
 Библиотека собрана из первой версии `proto-lib/rabbit`, но без найденных там багов:
@@ -12,7 +16,7 @@
 ## Установка
 
 ```bash
-go get github.com/dinushc/rabbitmq
+go get github.com/dinushc/rabbitmq@v0.1.0
 ```
 
 Если библиотека будет публиковаться под другим доменом, измените `module` в `go.mod` и импорты. Пакеты от этого не зависят.
@@ -141,19 +145,21 @@ func main() {
 | `RetryJitter` | `0.2` | Jitter retry |
 | `ExchangeType` | `topic` | Тип exchange по умолчанию |
 | `Persistent` | `true` | `delivery_mode=2` |
+| `Transient` | `false` | Отключает persistent и имеет приоритет над `Persistent` |
 | `RetryOnTimeout` | `true` | Повторять publish при таймауте confirm |
+| `DisableTimeoutRetries` | `false` | Отключает повторы после таймаута confirm |
 
 `PublishOptions` позволяет переопределить exchange type, mandatory/immediate, content type, headers, message ID, correlation ID и таймаут для конкретного сообщения.
 
-Если конфигурируете вручную, начинайте с `client.DefaultPublisherConfig()` или `client.DefaultSubscribeOptions()`: частично заполненная struct не наследует булевы значения по умолчанию.
+Частично заполненные конфиги наследуют остальные значения из `DefaultPublisherConfig()` и `DefaultSubscribeOptions()`. Для отключения поведения используйте явные поля `Transient`, `DisableTimeoutRetries`, `NonDurableExchange`, `NonDurableQueue`.
 
 ### Consumer
 
 | Поле | По умолчанию | Назначение |
 |------|--------------|------------|
 | `ExchangeType` | `topic` | Тип exchange |
-| `ExchangeDurable` | `true` | Durable exchange |
-| `QueueDurable` | `true` | Durable queue |
+| `NonDurableExchange` | `false` | Объявить non-durable exchange |
+| `NonDurableQueue` | `false` | Объявить non-durable queue |
 | `Prefetch` | `10` | Unacked лимит |
 | `Concurrency` | `10` | Параллельные handler'ы |
 | `HandlerTimeout` | `30s` | Таймаут handler'а; отрицательное значение отключает |
@@ -208,10 +214,21 @@ RABBITMQ_URL='amqp://guest:guest@localhost:5672/' go test ./client -run Integrat
 
 Юнит-тесты не требуют брокера.
 
+## CI и релизы
+
+GitHub Actions workflow `.github/workflows/ci.yml` запускает форматирование, `go mod tidy`, build, vet и race-тесты с RabbitMQ service. Пуш тега `v*` запускает `.github/workflows/release.yml`, который создаёт GitHub Release.
+
+Текущая версия — `v0.1.0` (см. `VERSION` и `CHANGELOG.md`). Проект следует semver: до `v1.0.0` API может меняться, после — только обратно совместимо.
+
+## Лицензия
+
+MIT. См. [LICENSE](LICENSE).
+
 ## Структура
 
 ```
 client/          подключение, publisher, consumer, конфигурация
 contracts/       события account/payment/vip
 examples/        примеры publisher и consumer
+.github/         CI, release и dependabot
 ```

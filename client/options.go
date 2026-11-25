@@ -110,11 +110,16 @@ type PublisherConfig struct {
 	Immediate bool
 	// ContentType is the default message content type.
 	ContentType string
-	// Persistent publishes messages with delivery mode 2.
+	// Persistent publishes messages with delivery mode 2. It is enabled by default.
 	Persistent bool
+	// Transient disables persistent delivery mode and takes precedence over Persistent.
+	Transient bool
 	// RetryOnTimeout retries publishes whose confirmation timed out.
 	// The message may already be on the broker, so consumers must be idempotent.
+	// It is enabled by default.
 	RetryOnTimeout bool
+	// DisableTimeoutRetries disables retries after publisher confirmation timeouts.
+	DisableTimeoutRetries bool
 }
 
 // DefaultPublisherConfig returns a production-oriented publisher configuration.
@@ -134,40 +139,49 @@ func DefaultPublisherConfig() PublisherConfig {
 }
 
 func (c PublisherConfig) withDefaults() PublisherConfig {
-	if c == (PublisherConfig{}) {
-		return DefaultPublisherConfig()
+	out := DefaultPublisherConfig()
+
+	if c.PublishTimeout > 0 {
+		out.PublishTimeout = c.PublishTimeout
 	}
-	if c.PublishTimeout <= 0 {
-		c.PublishTimeout = 5 * time.Second
+	if c.MaxRetries > 0 {
+		out.MaxRetries = c.MaxRetries
 	}
-	if c.MaxRetries <= 0 {
-		c.MaxRetries = 5
+	if c.RetryDelay > 0 {
+		out.RetryDelay = c.RetryDelay
 	}
-	if c.RetryDelay <= 0 {
-		c.RetryDelay = 100 * time.Millisecond
+	if c.MaxRetryDelay > 0 {
+		out.MaxRetryDelay = c.MaxRetryDelay
 	}
-	if c.MaxRetryDelay <= 0 {
-		c.MaxRetryDelay = 2 * time.Second
+	if out.MaxRetryDelay < out.RetryDelay {
+		out.MaxRetryDelay = out.RetryDelay
 	}
-	if c.MaxRetryDelay < c.RetryDelay {
-		c.MaxRetryDelay = c.RetryDelay
+	if c.RetryFactor >= 1 {
+		out.RetryFactor = c.RetryFactor
 	}
-	if c.RetryFactor < 1 {
-		c.RetryFactor = 2
+	if c.RetryJitter >= 0 && c.RetryJitter <= 1 {
+		out.RetryJitter = c.RetryJitter
 	}
-	if c.RetryJitter < 0 {
-		c.RetryJitter = 0
+
+	out.Mandatory = c.Mandatory
+	out.Immediate = c.Immediate
+	out.Transient = c.Transient
+	out.DisableTimeoutRetries = c.DisableTimeoutRetries
+
+	if c.ExchangeType != "" {
+		out.ExchangeType = c.ExchangeType
 	}
-	if c.RetryJitter > 1 {
-		c.RetryJitter = 1
+	if c.ContentType != "" {
+		out.ContentType = c.ContentType
 	}
-	if c.ExchangeType == "" {
-		c.ExchangeType = "topic"
+	if c.Transient {
+		out.Persistent = false
 	}
-	if c.ContentType == "" {
-		c.ContentType = "application/json"
+	if c.DisableTimeoutRetries {
+		out.RetryOnTimeout = false
 	}
-	return c
+
+	return out
 }
 
 // PublishOptions overrides per-message publishing settings.
@@ -233,10 +247,10 @@ func (d DLQOptions) names(queue string) (exchange, queueName, routingKey string)
 type SubscribeOptions struct {
 	// ExchangeType is the exchange type. Defaults to "topic".
 	ExchangeType string
-	// ExchangeDurable declares a durable exchange.
-	ExchangeDurable bool
-	// QueueDurable declares a durable queue.
-	QueueDurable bool
+	// NonDurableExchange declares a non-durable exchange.
+	NonDurableExchange bool
+	// NonDurableQueue declares a non-durable queue.
+	NonDurableQueue bool
 	// AutoDelete deletes the queue when the last consumer disconnects.
 	AutoDelete bool
 	// Exclusive restricts the queue to this connection.
@@ -269,49 +283,48 @@ type SubscribeOptions struct {
 // DefaultSubscribeOptions returns production-oriented subscription options.
 func DefaultSubscribeOptions() SubscribeOptions {
 	return SubscribeOptions{
-		ExchangeType:    "topic",
-		ExchangeDurable: true,
-		QueueDurable:    true,
-		Prefetch:        10,
-		Concurrency:     10,
-		HandlerTimeout:  30 * time.Second,
+		ExchangeType:   "topic",
+		Prefetch:       10,
+		Concurrency:    10,
+		HandlerTimeout: 30 * time.Second,
 	}
 }
 
 func (o SubscribeOptions) withDefaults() SubscribeOptions {
-	empty := o.ExchangeType == "" &&
-		!o.ExchangeDurable &&
-		!o.QueueDurable &&
-		!o.AutoDelete &&
-		!o.Exclusive &&
-		!o.NoLocal &&
-		!o.NoWait &&
-		!o.AutoAck &&
-		o.Prefetch == 0 &&
-		o.Concurrency == 0 &&
-		o.HandlerTimeout == 0 &&
-		o.QueueArguments == nil &&
-		o.ConsumerTag == "" &&
-		!o.RequeueOnError &&
-		!o.DisableDLQ &&
-		o.DLQ == (DLQOptions{})
+	out := DefaultSubscribeOptions()
 
-	if empty {
-		return DefaultSubscribeOptions()
+	if o.ExchangeType != "" {
+		out.ExchangeType = o.ExchangeType
 	}
-	if o.ExchangeType == "" {
-		o.ExchangeType = "topic"
+	out.NonDurableExchange = o.NonDurableExchange
+	out.NonDurableQueue = o.NonDurableQueue
+	out.AutoDelete = o.AutoDelete
+	out.Exclusive = o.Exclusive
+	out.NoLocal = o.NoLocal
+	out.NoWait = o.NoWait
+	out.AutoAck = o.AutoAck
+	if o.Prefetch > 0 {
+		out.Prefetch = o.Prefetch
 	}
-	if o.Prefetch <= 0 {
-		o.Prefetch = 10
+	if o.Concurrency > 0 {
+		out.Concurrency = o.Concurrency
 	}
-	if o.Concurrency <= 0 {
-		o.Concurrency = 10
+	if o.HandlerTimeout != 0 {
+		out.HandlerTimeout = o.HandlerTimeout
 	}
-	if o.HandlerTimeout == 0 {
-		o.HandlerTimeout = 30 * time.Second
+	if o.QueueArguments != nil {
+		out.QueueArguments = o.QueueArguments
 	}
-	return o
+	if o.ConsumerTag != "" {
+		out.ConsumerTag = o.ConsumerTag
+	}
+	out.RequeueOnError = o.RequeueOnError
+	out.DisableDLQ = o.DisableDLQ
+	if o.DLQ != (DLQOptions{}) {
+		out.DLQ = o.DLQ
+	}
+
+	return out
 }
 
 // ConsumerOption customizes a Consumer.

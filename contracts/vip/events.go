@@ -1,3 +1,4 @@
+// Package vip contains RabbitMQ event contracts for the vip domain.
 package vip
 
 import (

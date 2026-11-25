@@ -1,3 +1,4 @@
+// Package account contains RabbitMQ event contracts for the account domain.
 package account
 
 import (

@@ -152,7 +152,7 @@ func (p *Publisher) publishOnce(ctx context.Context, exchange, routingKey string
 	publishing := amqp.Publishing{
 		ContentType:     opts.ContentType,
 		ContentEncoding: opts.ContentEncoding,
-		DeliveryMode:    deliveryMode(boolValue(opts.Persistent, p.cfg.Persistent)),
+		DeliveryMode:    deliveryMode(boolValue(opts.Persistent, p.cfg.Persistent && !p.cfg.Transient)),
 		Priority:        opts.Priority,
 		CorrelationId:   opts.CorrelationID,
 		ReplyTo:         opts.ReplyTo,

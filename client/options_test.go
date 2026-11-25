@@ -42,7 +42,7 @@ func TestSubscribeOptionsDefaults(t *testing.T) {
 	t.Parallel()
 
 	opts := SubscribeOptions{}.withDefaults()
-	if !opts.ExchangeDurable || !opts.QueueDurable {
+	if opts.NonDurableExchange || opts.NonDurableQueue {
 		t.Fatal("zero options should produce durable topology")
 	}
 	if opts.Prefetch != 10 || opts.Concurrency != 10 {
@@ -53,6 +53,36 @@ func TestSubscribeOptionsDefaults(t *testing.T) {
 	}
 	if opts.DisableDLQ {
 		t.Fatal("DLQ should be enabled by default")
+	}
+
+	partial := SubscribeOptions{Prefetch: 50, Concurrency: 4}.withDefaults()
+	if partial.NonDurableQueue || partial.NonDurableExchange {
+		t.Fatal("partially filled options should keep durable topology defaults")
+	}
+	if partial.Prefetch != 50 || partial.Concurrency != 4 {
+		t.Fatalf("overrides were not applied: %+v", partial)
+	}
+
+	nonDurable := SubscribeOptions{NonDurableQueue: true, NonDurableExchange: true}.withDefaults()
+	if !nonDurable.NonDurableQueue || !nonDurable.NonDurableExchange {
+		t.Fatalf("non-durable overrides were not applied: %+v", nonDurable)
+	}
+}
+
+func TestPublisherConfigPartialDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := PublisherConfig{MaxRetries: 3}.withDefaults()
+	if !cfg.Persistent || !cfg.RetryOnTimeout {
+		t.Fatalf("partial config should keep persistent and timeout retries: %+v", cfg)
+	}
+	if cfg.MaxRetries != 3 {
+		t.Fatalf("MaxRetries = %d, want 3", cfg.MaxRetries)
+	}
+
+	transient := PublisherConfig{Transient: true, DisableTimeoutRetries: true}.withDefaults()
+	if transient.Persistent || transient.RetryOnTimeout {
+		t.Fatalf("transient overrides were not applied: %+v", transient)
 	}
 }
 

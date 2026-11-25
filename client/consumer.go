@@ -234,7 +234,7 @@ func (s *subscription) declareTopology(ch *amqp.Channel) error {
 	if err := ch.ExchangeDeclare(
 		s.exchange,
 		s.opts.ExchangeType,
-		s.opts.ExchangeDurable,
+		!s.opts.NonDurableExchange,
 		false,
 		false,
 		s.opts.NoWait,
@@ -266,7 +266,7 @@ func (s *subscription) declareTopology(ch *amqp.Channel) error {
 
 	if _, err := ch.QueueDeclare(
 		s.queueName,
-		s.opts.QueueDurable,
+		!s.opts.NonDurableQueue,
 		s.opts.AutoDelete,
 		s.opts.Exclusive,
 		s.opts.NoWait,

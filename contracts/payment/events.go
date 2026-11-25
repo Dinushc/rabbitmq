@@ -1,3 +1,4 @@
+// Package payment contains RabbitMQ event contracts for the payment domain.
 package payment
 
 import (
